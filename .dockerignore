@@ -1,0 +1,8 @@
+# docker ignore file
+.git
+.gitignore
+Dockerfile*
+docker-compose.yml
+*.md
+node_modules
+mysql
