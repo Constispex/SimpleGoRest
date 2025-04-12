@@ -6,6 +6,7 @@ import (
 	"os"
 	"prosting/backend-gin/internal/handlers"
 	"prosting/backend-gin/pkg/config"
+	"prosting/backend-gin/scripts"
 )
 
 func main() {
@@ -15,7 +16,9 @@ func main() {
 		log.Fatalf("Could not load config: %v", err)
 	}
 
-	// Gin-Router initialisieren
+	// Datenbankverbindung herstellen
+	scripts.RunMigration()
+	//Gin-Router initialisieren
 	router := gin.Default()
 
 	// User-Handler erstellen und Routen definieren
