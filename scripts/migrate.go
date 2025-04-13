@@ -9,6 +9,8 @@ import (
 	"prosting/backend-gin/pkg/config"
 )
 
+var DB *gorm.DB
+
 func RunMigration() {
 	cfg, err := config.LoadConfig(".env")
 	if err != nil {
@@ -27,6 +29,7 @@ func RunMigration() {
 		fmt.Println("Could not ping database:", err)
 		return
 	}
+	DB = db
 
 	// Migrate the schema
 	if err := db.AutoMigrate(
