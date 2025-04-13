@@ -8,7 +8,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/server
 
-# Stage 2: Minimaler Laufzeit-Container
+# Stage 2: Minimaler Laufzeit-Room
 FROM alpine:3.21.3
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
