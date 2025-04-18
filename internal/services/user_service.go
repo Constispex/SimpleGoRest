@@ -10,9 +10,10 @@ type UserService struct {
 	repo *repository.UserRepository
 }
 
-func NewUserService() *UserService {
+// NewUserService erstellt eine neue Instanz von UserService.
+func NewUserService(repo *repository.UserRepository) *UserService {
 	return &UserService{
-		repo: repository.NewUserRepository(),
+		repo: repo,
 	}
 }
 

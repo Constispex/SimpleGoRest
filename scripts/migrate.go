@@ -1,11 +1,15 @@
 package scripts
 
 import (
-	"database/sql"
 	"fmt"
 	_ "github.com/lib/pq" // PostgreSQL driver
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"prosting/backend-gin/internal/models"
 	"prosting/backend-gin/pkg/config"
 )
+
+var DB *gorm.DB
 
 func RunMigration() {
 	cfg, err := config.LoadConfig(".env")
@@ -15,18 +19,30 @@ func RunMigration() {
 	}
 	fmt.Println("Running migrations for database:", cfg.Database)
 
-	db, err := sql.Open("postgres", getConnectionString(cfg))
+	db, err := gorm.Open(postgres.Open(getConnectionString(cfg)), &gorm.Config{})
 	if err != nil {
 		fmt.Println("Could not connect to database:", err)
 	}
-	defer db.Close()
 
-	err = db.Ping()
-	if err != nil {
-		_ = fmt.Errorf("could not ping database: %s", err)
+	// Try to Ping the database
+	if err := db.Exec("SELECT 1").Error; err != nil {
+		fmt.Println("Could not ping database:", err)
+		return
 	}
-	defer db.Close()
-	fmt.Println("Connected to database successfully")
+	DB = db
+
+	// Migrate the schema
+	if err := db.AutoMigrate(
+		&models.User{},
+		&models.Item{},
+		&models.Room{},
+		&models.Category{},
+	); err != nil {
+		fmt.Println("Could not migrate database:", err)
+		return
+	}
+
+	fmt.Println("Database migration completed successfully.")
 
 }
 

@@ -12,9 +12,10 @@ type UserHandler struct {
 	userService *services.UserService
 }
 
-func NewUserHandler() *UserHandler {
+// NewUserHandler erstellt eine neue Instanz von UserHandler
+func NewUserHandler(userService *services.UserService) *UserHandler {
 	return &UserHandler{
-		userService: services.NewUserService(),
+		userService: userService,
 	}
 }
 

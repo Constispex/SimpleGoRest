@@ -1,37 +1,40 @@
 package repository
 
 import (
-	"errors"
-	"prosting/backend-gin/internal/models"
+	"gorm.io/gorm"
+	. "prosting/backend-gin/internal/models"
 )
 
 // UserRepository simuliert einen Datenbankzugriff (hier in‑Memory).
 type UserRepository struct {
-	users []models.User
+	db *gorm.DB
 }
 
-func NewUserRepository() *UserRepository {
+func NewUserRepository(db *gorm.DB) *UserRepository {
 	return &UserRepository{
-		users: []models.User{},
+		db: db,
 	}
 }
 
-func (r *UserRepository) GetAll() ([]models.User, error) {
-	return r.users, nil
+func (r *UserRepository) GetAll() ([]User, error) {
+	var users []User
+	if err := r.db.Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
 }
 
-func (r *UserRepository) Save(user *models.User) (*models.User, error) {
-	// Simpler Mechanismus, um eine ID zu vergeben
-	user.ID = len(r.users) + 1
-	r.users = append(r.users, *user)
+func (r *UserRepository) Save(user *User) (*User, error) {
+	if err := r.db.Create(user).Error; err != nil {
+		return nil, err
+	}
 	return user, nil
 }
 
-func (r *UserRepository) FindByID(id int) (*models.User, error) {
-	for _, u := range r.users {
-		if u.ID == id {
-			return &u, nil
-		}
+func (r *UserRepository) GetByID(id uint) (*User, error) {
+	var user User
+	if err := r.db.First(&user, id).Error; err != nil {
+		return nil, err
 	}
-	return nil, errors.New("user not found")
+	return &user, nil
 }
