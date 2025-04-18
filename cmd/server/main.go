@@ -14,24 +14,20 @@ func main() {
 	// Datenbankverbindung herstellen
 	scripts.RunMigration()
 	//Gin-Router initialisieren
-	router := gin.Default()
+	r := gin.Default()
+	repo := repository.NewProjectRepository(scripts.DB)
+	svc := services.NewProjectService(repo)
+	h := handlers.NewProjectHandler(svc)
 
-	// User-Repository und -Service initialisieren
-	userRepo := repository.NewUserRepository(scripts.DB)
-	userService := services.NewUserService(userRepo)
+	// Routen definieren
+	r.POST("/api/projects", h.Create)
+	r.GET("/api/projects", h.GetAll)
 
-	// User-Handler erstellen und Routen definieren
-	userHandler := handlers.NewUserHandler(userService)
-
-	// Definiere die Routen
-	router.GET("/users", userHandler.GetUsers)
-	router.POST("/users", userHandler.CreateUser)
-
-	// Starte den Server auf dem angegebenen Port
+	//Starte den Server auf dem angegebenen Port
 	port := os.Getenv("SERVER_PORT")
 	if port == "" {
 		port = "8080"
 	}
 	log.Printf("Server startet auf Port %s", port)
-	router.Run(":" + port)
+	r.Run(":" + port)
 }

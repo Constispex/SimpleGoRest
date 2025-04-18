@@ -5,6 +5,7 @@ import (
 	_ "github.com/lib/pq" // PostgreSQL driver
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"prosting/backend-gin/internal/models"
 	"prosting/backend-gin/pkg/config"
 )
@@ -19,7 +20,9 @@ func RunMigration() {
 	}
 	fmt.Println("Running migrations for database:", cfg.Database)
 
-	db, err := gorm.Open(postgres.Open(getConnectionString(cfg)), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(getConnectionString(cfg)), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Info),
+	})
 	if err != nil {
 		fmt.Println("Could not connect to database:", err)
 	}
@@ -34,9 +37,9 @@ func RunMigration() {
 	// Migrate the schema
 	if err := db.AutoMigrate(
 		&models.User{},
-		&models.Item{},
-		&models.Room{},
-		&models.Category{},
+		&models.MovieProject{},
+		&models.ImageProject{},
+		&models.MusicProject{},
 	); err != nil {
 		fmt.Println("Could not migrate database:", err)
 		return

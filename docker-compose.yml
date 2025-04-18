@@ -12,15 +12,17 @@ services:
       - db
   db:
     image: postgres:10.21
-    container_name: prosting_db
+    container_name: portfolio_db
     restart: always
+    ports:
+      - "5432:5432"
     env_file:
       - .env
     volumes:
       - db_data:/var/lib/postgresql/data
   pgadmin:
     image: dpage/pgadmin4:9.2.0
-    container_name: prosting_pgadmin
+    container_name: portfolio_pgadmin
     restart: always
     ports:
       - "5080:80"
