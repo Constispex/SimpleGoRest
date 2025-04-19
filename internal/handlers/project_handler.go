@@ -2,9 +2,12 @@ package handlers
 
 import (
 	"encoding/json"
-	"net/http"
-
+	"fmt"
 	"github.com/gin-gonic/gin"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"path/filepath"
 	"prosting/backend-gin/internal/models"
 	"prosting/backend-gin/internal/services"
 )
@@ -17,106 +20,37 @@ func NewProjectHandler(service services.ProjectService) *ProjectHandler {
 	return &ProjectHandler{svc: service}
 }
 
-func (h *ProjectHandler) UploadImageProject(c *gin.Context) {
-	projectJson := c.PostForm("project")
-	if projectJson == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing project data"})
-		return
-	}
-
-	var project models.ImageProject
-	if err := json.Unmarshal([]byte(projectJson), &project); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project JSON"})
-		return
-	}
-
-	form, err := c.MultipartForm()
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse multipart form"})
-		return
-	}
-
-	files := form.File["files"]
-	if len(files) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No files uploaded"})
-		return
-	}
-
-	uploadDir := "./uploads/image"
-	if err := c.SaveUploadedFile(files[0], uploadDir+"/"+files[0].Filename); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
-		return
-	}
-
-	var filePaths []string
-	for _, file := range files {
-		if err := c.SaveUploadedFile(file, uploadDir+"/"+file.Filename); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
-			return
-		}
-		filePaths = append(filePaths, uploadDir+"/"+file.Filename)
-	}
-
-	project.ImageURLs = filePaths
-
-	if err := h.svc.Create(project); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save project"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"message": "Project created successfully"})
-}
-
 func (h *ProjectHandler) Create(c *gin.Context) {
 	// Begrenze die maximale Größe der Anfrage
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 20<<20) // 20 MB
 
-	// Lese das JSON aus dem 'project'-Feld
-	projectJSON := c.PostForm("project")
-	if projectJSON == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing 'project' field"})
+	projectBytes, err := readProjectFile(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read project file"})
 		return
 	}
 
-	// Unmarshale das JSON in eine generische Map, um den Typ zu bestimmen
-	var raw map[string]interface{}
-	if err := json.Unmarshal([]byte(projectJSON), &raw); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+	projectType, err := parseProjectType(projectBytes)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid project type"})
 		return
 	}
 
-	projType, ok := raw["type"].(string)
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing or invalid 'type' field"})
-		return
-	}
-
-	// Verarbeite die Anfrage basierend auf dem Projekttyp
-	switch projType {
+	// Lese den Inhalt des 'project'-Feldes
+	switch projectType {
 	case "image":
-		var img models.ImageProject
-		if err := json.Unmarshal([]byte(projectJSON), &img); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid image project"})
+		if err := h.handleImageProject(c, projectBytes); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-
-		// Extrahiere die hochgeladenen Dateien
-		form, err := c.MultipartForm()
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse multipart form"})
+	case "movie":
+		if err := h.handleMovieProject(c, projectBytes); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		files := form.File["files"]
-
-		// Verarbeite die Dateien (z. B. speichern)
-		for _, file := range files {
-			// Beispiel: Datei speichern
-			c.SaveUploadedFile(file, "./uploads/"+file.Filename)
-			// Optional: Pfad zur gespeicherten Datei im Projektobjekt speichern
-			img.ImageURLs = append(img.ImageURLs, "/uploads/"+file.Filename)
-		}
-
-		if err := h.svc.Create(img); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not save image project"})
+	case "music":
+		if err := h.handleMusicProject(c, projectBytes); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 	// Weitere Fälle für 'movie' und 'music' können analog hinzugefügt werden
@@ -128,11 +62,167 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 	c.Status(http.StatusCreated)
 }
 
+func parseProjectType(projectBytes []byte) (string, error) {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(projectBytes, &raw); err != nil {
+		return "", err
+	}
+	projType, ok := raw["type"].(string)
+	if !ok {
+		return "", fmt.Errorf("missing or invalid 'type' field")
+	}
+	return projType, nil
+
+}
+
 func (h *ProjectHandler) GetAll(c *gin.Context) {
+	projectType := c.Query("type")
+	if projectType != "" {
+		projects, err := h.svc.FindByType(projectType)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, projects)
+		return
+	}
 	projects, err := h.svc.FindAll()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, projects)
+}
+
+func (h *ProjectHandler) GetCategories(c *gin.Context) {
+	projectType := c.Query("type")
+
+	categories, err := h.svc.FindMainCategoriesByType(projectType)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, categories)
+}
+
+func (h *ProjectHandler) handleImageProject(c *gin.Context, data []byte) error {
+	var img models.ImageProject
+	if err := json.Unmarshal(data, &img); err != nil {
+		return fmt.Errorf("invalid image project data: %w", err)
+	}
+
+	categoryFolder := filepath.Join("uploads", img.MainCategory, img.SubCategory)
+
+	savedFiles, err := saveToDisk(c, categoryFolder)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not save image project: " + err.Error()})
+		return err
+	}
+	img.ImageURLs = append(img.ImageURLs, savedFiles...)
+	if err := h.svc.Create(img); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not save image project"})
+		return err
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Image project created successfully"})
+	return nil
+}
+
+func (h *ProjectHandler) handleMovieProject(c *gin.Context, data []byte) error {
+	var movie models.MovieProject
+	if err := json.Unmarshal(data, &movie); err != nil {
+		return fmt.Errorf("invalid movie project data: %w", err)
+	}
+
+	if movie.VideoURL == nil || *movie.VideoURL == "" {
+
+		categoryFolder := filepath.Join("uploads", movie.MainCategory)
+
+		savedFiles, err := saveToDisk(c, categoryFolder)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not save movie project: " + err.Error()})
+			return err
+		}
+		movie.VideoURL = &savedFiles[0]
+	} else {
+		// Wenn die URL bereits gesetzt ist, speichern wir sie nicht erneut
+		fmt.Println("Video URL already set, not saving to disk.")
+	}
+	if err := h.svc.Create(movie); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not save movie project"})
+		return err
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Movie project created successfully"})
+	return nil
+}
+
+func (h *ProjectHandler) handleMusicProject(c *gin.Context, data []byte) error {
+	var music models.MusicProject
+	if err := json.Unmarshal(data, &music); err != nil {
+		return fmt.Errorf("invalid music project data: %w", err)
+	}
+
+	categoryFolder := filepath.Join("uploads", music.MainCategory)
+
+	savedFiles, err := saveToDisk(c, categoryFolder)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not save music project: " + err.Error()})
+		return err
+	}
+	music.AudioURL = savedFiles[0]
+	if err := h.svc.Create(music); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not save music project"})
+		return err
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Music project created successfully"})
+	return nil
+}
+
+func saveToDisk(c *gin.Context, categoryFolder string) ([]string, error) {
+	form := c.Request.MultipartForm
+	files := form.File["files"]
+	var urls []string
+
+	for _, file := range files {
+		// Beispiel: Datei speichern
+		err := c.SaveUploadedFile(file, filepath.Join(categoryFolder, file.Filename))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not save file: " + err.Error()})
+			return nil, err
+		}
+		urls = append(urls, filepath.Join(categoryFolder, file.Filename))
+	}
+
+	fmt.Println("Saved files:", urls)
+	return urls, nil
+}
+
+func readProjectFile(c *gin.Context) ([]byte, error) {
+	// Lese den Inhalt des 'project'-Feldes
+	fileHeader, err := c.FormFile("project")
+	if err != nil {
+		return nil, err
+	}
+
+	projectFile, err := fileHeader.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer func(projectFile multipart.File) {
+		err := projectFile.Close()
+		if err != nil {
+			fmt.Println("Error closing file:", err)
+			return
+		}
+	}(projectFile)
+
+	projectBytes, err := io.ReadAll(projectFile)
+	if err != nil {
+		return nil, err
+	}
+
+	return projectBytes, nil
 }

@@ -27,7 +27,6 @@ type ProjectBase struct {
 type MovieProject struct {
 	ProjectBase
 	VideoURL     *string        `json:"videoUrl,omitempty"`
-	FileURL      *string        `json:"fileUrl,omitempty"`
 	ThumbnailURL string         `json:"thumbnailUrl"`
 	Tasks        pq.StringArray `gorm:"type:text[]" json:"tasks"`
 }

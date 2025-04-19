@@ -1,4 +1,4 @@
-# docker ignore file
+# docker ignore projectFile
 .git
 .gitignore
 Dockerfile*

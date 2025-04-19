@@ -16,7 +16,7 @@ func main() {
 	// Datenbankverbindung herstellen
 	scripts.RunMigration()
 	//Gin-Router initialisieren
-	r := gin.New()
+	r := gin.Default()
 
 	r.MaxMultipartMemory = 128 << 20 // 16 MB
 	r.Use(gin.Logger())
@@ -44,6 +44,7 @@ func main() {
 	// Routen definieren
 	r.POST("/api/projects", h.Create)
 	r.GET("/api/projects", h.GetAll)
+	r.GET("/api/categories", h.GetCategories)
 
 	//Starte den Server auf dem angegebenen Port
 	port := os.Getenv("SERVER_PORT")
@@ -55,5 +56,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Fehler beim Starten des Servers: %v", err)
 		return
+	}
+}
+
+func init() {
+	if _, err := os.Stat("uploads"); os.IsNotExist(err) {
+		os.Mkdir("uploads", os.ModePerm)
 	}
 }
