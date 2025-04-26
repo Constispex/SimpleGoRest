@@ -5,13 +5,14 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - ./uploads:/app/uploads
+      - upload_data:/app/uploads
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"
     env_file:
       - .env
     depends_on:
       - db
+      - upload_volume
   db:
     image: postgres:10.21
     container_name: portfolio_db
@@ -34,6 +35,14 @@ services:
       - db
     volumes:
       - pgadmin_data:/var/lib/pgadmin
+  upload_volume:
+    image: busybox
+    container_name: portfolio_uploads
+    restart: always
+    volumes:
+      - upload_data:/uploads
+    command: sh -c "while true; do sleep 3600; done;"
 volumes:
+  upload_data:
   db_data:
   pgadmin_data:

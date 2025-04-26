@@ -18,7 +18,7 @@ func main() {
 	//Gin-Router initialisieren
 	r := gin.Default()
 
-	r.MaxMultipartMemory = 128 << 20 // 16 MB
+	r.MaxMultipartMemory = 1024 << 20
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 
