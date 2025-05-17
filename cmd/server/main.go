@@ -61,6 +61,9 @@ func main() {
 
 func init() {
 	if _, err := os.Stat("uploads"); os.IsNotExist(err) {
-		os.Mkdir("uploads", os.ModePerm)
+		err := os.Mkdir("uploads", os.ModePerm)
+		if err != nil {
+			log.Fatalf("Fehler beim Erstellen des Upload-Verzeichnisses: %v", err)
+		}
 	}
 }
